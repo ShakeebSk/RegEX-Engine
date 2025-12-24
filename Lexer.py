@@ -8,7 +8,7 @@ A Dataclass is a decorator that is used to automatically generate special method
 """
 
 
-""" 
+"""
 Why we are using auto every where:
 The `auto()` function is used to automatically assign unique integer values to each enum member. This simplifies the process of defining enum members and ensures that each one has a distinct value without having to manually specify them.
 otherwise we have to do something like this:
@@ -30,6 +30,23 @@ class TokenType(Enum):
     DOT = 15
     DOLLAR = 16
     BACKSLASH = 17
+    DIGIT = 18
+    NON_DIGIT = 19
+    WORD = 20
+    NON_WORD = 21
+    WHITESPACE = 22
+    NON_WHITESPACE = 23
+    WORD_BOUNDARY = 24
+    NON_WORD_BOUNDARY = 25
+    BACKREF = 26
+    LOOKAHEAD_POS = 27
+    LOOKAHEAD_NEG = 28
+    LOOKBEHIND_POS = 29
+    LOOKBEHIND_NEG = 30
+    NON_CAPTURING = 31
+    EOF = 32
+    
+    
 """
 
 
@@ -177,4 +194,98 @@ class Token:
 
 
 class Lexer:
-    pass
+    def __init__(self, patterns: str):
+        self.pattern = patterns
+        self.pos = 0
+        self.length = len(patterns)
+        # self.tokens = []
+
+    def current_char(self) -> Optional[str]:
+        if self.pos < self.length:
+            return self.pattern[self.pos]
+        return None
+
+    def advance(self) -> Optional[str]:
+        char = self.current_char()
+        self.pos += 1
+        return char
+
+    def tokenize(self) -> list[Token]:
+        tokens = []
+
+        while self.pos < self.length:
+            start_pos = self.pos
+            char = self.current_char()
+
+            if char == "\\":
+                self._handle_escape()
+
+    def _handle_escape(self) -> Optional[Token]:
+        start_pos = self.pos
+        self.advance()
+
+        next_char = self.current_char()
+        if next_char is None:
+            raise ValueError(
+                f"Unexpected end of pattern after backslash at position {start_pos}"
+            )
+
+        if next_char == "d":
+            self.advance()
+            return Token(TokenType.DIGIT, r"\d", start_pos)
+
+        # Handle other escape sequences similarly
+        elif next_char == "D":
+            self.advance()
+            return Token(TokenType.NON_DIGIT, r"\D", start_pos)
+
+        elif next_char == "w":
+            self.advance()
+            return Token(TokenType.WORD, r"\w", start_pos)
+
+        elif next_char == "W":
+            self.advance()
+            return Token(TokenType.NON_WORD, r"\W", start_pos)
+
+        elif next_char == "s":
+            self.advance()
+            return Token(TokenType.WHITESPACE, r"\s", start_pos)
+
+        elif next_char == "S":
+            self.advance()
+            return Token(TokenType.NON_WHITESPACE, r"\S", start_pos)
+
+        elif next_char == "b":
+            self.advance()
+            return Token(TokenType.WORD_BOUNDARY, r"\b", start_pos)
+
+        elif next_char == "B":
+            self.advance()
+            return Token(TokenType.NON_WORD_BOUNDARY, r"\B", start_pos)
+
+        elif next_char.isdigit():
+            num = ""
+            while self.current_char() is not None and self.current_char().isdigit():
+                #     num += self.current_char()
+                #     self.advance()
+                # return Token(TokenType.DIGIT, num, start_pos)
+                num += self.advance()
+
+            return Token(TokenType.BACKREF, f"\\{num}", start_pos)
+
+        # print("Escape sequence not implemented yet")
+
+        elif next_char == "n":
+            self.advance()
+            return Token(TokenType.CHAR, r"\n", start_pos)
+        elif next_char == "t":
+            self.advance()
+            return Token(TokenType.CHAR, "\t", start_pos)
+
+        elif next_char == "r":
+            self.advance()
+            return Token(TokenType.CHAR, "\r", start_pos)
+
+        else:
+            self.advance()
+            return Token(TokenType.CHAR, next_char, start_pos)
