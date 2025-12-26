@@ -1,5 +1,5 @@
 from typing import List, Set
-from lexer import Token, TokenType
+from lexer import Lexer, Token, TokenType
 from ast_node import *
 
 
@@ -17,6 +17,19 @@ Before Coding it up let's have an example (ab*c|d) how we are going to parse thi
 
 
 
+"""
+
+
+r"""
+The Parser Class will have all the Functions that are going to Parse the Pattern String.
+
+1. init is the Intialization of 
+2. current_token will return the Current Token that we are looking at
+3. peek_token will look ahead of the Current Token by an offset
+4. advance will move the position to the next token.
+5. expect will check if the current token is of the expected type and advance if it is, otherwise raise an error.
+6. parse is the main entry point for parsing the entire regex pattern.
+7. parse_alternation will handle parsing of alternation (|) in the regex. and it will call parse_cocatenation
 
 """
 
@@ -30,6 +43,12 @@ class Parser:
     def current_token(self) -> Token:
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
+        return self.tokens[-1]
+
+    def peek_token(self, offset: int = 1) -> Token:
+        pos = self.pos + offset
+        if pos < len(self.tokens):
+            return self.tokens[pos]
         return self.tokens[-1]
 
     def advance(self) -> Token:
@@ -47,10 +66,29 @@ class Parser:
         return self.advance()
 
     def parse(self) -> ASTNode:
-        self.parse_alternation()
+        ast = self.parse_alternation()
+
+        if self.current_token().type != TokenType.EOF:
+            token = self.current_token()
+
+            raise ValueError(
+                f"Unexpected token {token.type} at position {token.position}"
+            )
+
+        return ast
 
     def parse_alternation(self) -> ASTNode:
-        self.parse_concat()
+        alternatives = [self.parse_concat()]
+
+        while self.current_token().type == TokenType.PIPE:
+            self.advance()
+
+            alternatives.append(self.parse_concat())
+
+            if len(alternatives) == 1:
+                return alternatives[0]
+
+        return AlternationNode(alternatives)
 
     def parse_concat(self) -> ASTNode:
         # self
@@ -73,12 +111,45 @@ class Parser:
             return ConcatNode([])
 
         if len(items) == 1:
-            return items[1]
+            return items[0]
 
         return ConcatNode(items)
 
     def parse_quantified(self) -> ASTNode:
-        self.parse_atom()
+        atom = self.parse_atom()
+
+        token = self.current_token()
+
+        if token.type == TokenType.STAR:
+            self.advance()
+
+            greedy = not self._check_lazy_modifier()
+            return QuantifierNode(atom, 0, None, greedy)
+
+        elif token.type == TokenType.PLUS:
+            self.advance()
+
+            greedy = not self._check_lazy_modifier()
+
+            return QuantifierNode(atom, 1, None, greedy)
+
+        elif token.type == TokenType.QUESTION:
+            self.advance()
+
+            greedy = not self._check_lazy_modifier()
+
+            return QuantifierNode(atom, 0, 1, greedy)
+
+        elif token.type == TokenType.LBRACE:
+            return self._parse_range_quantifier(atom)
+
+        return atom
+
+    def _check_lazy_modifier(self) -> bool:
+        if self.current_token().type == TokenType.QUESTION:
+            self.advance()
+            return True
+        return False
 
     def parse_atom(self) -> ASTNode:
         token = self.current_token()
@@ -131,8 +202,222 @@ class Parser:
             self.advance()
             return PredefinedClassNode("S")
 
-        else:
-            pass
+        elif token.type == TokenType.BACKREF:
+            self.advance()
+            return BackreferenceNode(int(token.value))
 
-    def peek_token():
-        pass
+        elif token.type == TokenType.LBRACKET:
+            return self._parse_char_class()
+
+        elif token.type == TokenType.LPAREN:
+            return self._parse_group()
+
+        elif token.type == TokenType.NON_CAPTURING:
+            return self._parse_non_capturing_group()
+
+        elif token.type == TokenType.LOOKAHEAD_POS:
+            return self._parse_lookahead(positive=True)
+
+        elif token.type == TokenType.LOOKAHEAD_NEG:
+            return self._parse_lookahead(positive=False)
+
+        elif token.type == TokenType.LOOKBEEHIND_POS:
+            return self._parse_lookbehind(positive=True)
+
+        elif token.type == TokenType.LOOKBEEHIND_NEG:
+            return self._parse_lookbehind(positive=False)
+
+        else:
+            raise ValueError(
+                f"Unexpected token {token.type} at position {token.position}"
+            )
+
+    def _parse_char_class(self) -> CharClassNode:
+        self.expect(TokenType.LBRACKET)
+
+        negated = False
+
+        if self.current_token().type == TokenType.CARET:
+            negated = True
+            self.advance()
+
+        chars = Set[str] = Set()
+
+        while self.current_token().type != TokenType.RBRACKET:
+            token = self.current_token()
+
+            if token.type == TokenType.EOF:
+                raise ValueError("Unclosed character class...")
+
+            if token.type == TokenType.CHAR:
+                char = token.value
+                self.advance()
+
+                if self.current_token().type == TokenType.DASH:
+                    next_token = self.peek_token()
+                    if next_token.type == TokenType.CHAR:
+                        self.advance()
+                        end_char = self.current_token().value
+                        self.advance()
+
+                        start_ord = ord(char)
+                        end_ord = ord(char)
+
+                        if start_ord > end_ord:
+                            raise ValueError(
+                                f"Invalid range {char} - {end_char} : start > end:"
+                            )
+
+                        for code in range(start_ord, end_ord + 1):
+                            chars.add(chr(code))
+
+                    else:
+                        chars.add(char)
+                        chars.add("-")
+                        self.advance()
+
+                else:
+                    chars.add(char)
+
+            elif token.type == TokenType.DIGIT:
+                self.advance()
+                chars.update("0123456789")
+
+            elif token.type == TokenType.WORD:
+                self.advance()
+                chars.update(
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+                )
+
+            elif token.type == TokenType.WHITESPACE:
+                self.advance()
+                chars.update(" \t\n\r\f\v")
+
+            elif token.type == TokenType.DASH:
+                self.advance()
+                chars.add("-")
+
+            elif token.type in (
+                TokenType.PLUS,
+                TokenType.STAR,
+                TokenType.QUESTION,
+                TokenType.DOT,
+                TokenType.PIPE,
+                TokenType.CARET,
+                TokenType.DOLLAR,
+                TokenType.LBRACE,
+                TokenType.RBRACE,
+                TokenType.LPAREN,
+                TokenType.RPAREN,
+            ):
+                self.advance()
+                chars.add(token.value)
+
+            else:
+                raise ValueError(
+                    f"Unexpected token {token.type} in character class at position..."
+                )
+
+        self.expect(TokenType.RBRACKET)
+
+        if not chars:
+            raise ValueError("Empty character class")
+
+        return CharClassNode(chars, negated)
+
+    def _parse_group(self):
+        self.expect(TokenType.LPAREN)
+
+        self.group_counter += 1
+
+        group_num = self.group_counter
+
+        child = self.parse_alternation()
+
+        self.expect(TokenType.RPAREN)
+
+        return GroupNode(child, group_num)
+
+    def _parse_non_capturing_group(self) -> NonCapturingGroupNode:
+        self.advance()
+
+        child = self.parse_alternation()
+
+        self.expect(TokenType.RPAREN)
+
+        return NonCapturingGroupNode(child)
+
+    def _parse_lookahead(self, positive: bool) -> LookaheadNode:
+        self.advance()
+
+        child = self.parse_alternation()
+
+        self.expect(TokenType.RPAREN)
+
+        return LookaheadNode(child, positive)
+
+    def _parse_lookbehind(self, positive: bool) -> LookbehindNode:
+        self.advance()
+
+        child = self.parse_alternation()
+
+        self.expect(TokenType.RPAREN)
+
+        return LookbehindNode(child, positive)
+
+    def _parse_range_quantifier(self, atom: ASTNode) -> QuantifierNode:
+        r"""(?:\d{3}-(\d{4}-\11))"""
+        self.expect(TokenType.LBRACE)
+
+        token = self.current_token()
+
+        if token.type != TokenType.CHAR or not token.value.isdigit():
+            raise ValueError(
+                f"Expected number in range quantifier, got {token.type} at position {token.position}"
+            )
+
+        min_count = int(token.value)
+
+        self.advance()
+
+        max_count = min_count
+
+        if self.current_token().type == TokenType.COMMA:
+            self.advance()
+
+            token = self.current_token()
+
+            if token.type == TokenType.RBRACE:
+                max_count = None
+
+            elif token.type == TokenType.CHAR and token.value.isdigit():
+                max_count = int(token.value)
+
+                self.advance()
+
+            else:
+                raise ValueError(
+                    f" Expected number or '}}' in range quantifier, got {token.type} at position {token.position}"
+                )
+
+        self.expect(TokenType.RBRACE)
+
+        greedy = not self._check_lazy_modifier()
+
+        return QuantifierNode(atom, min_count, max_count, greedy)
+
+
+r"""
+Why we are using all of these approach:
+
+
+
+
+"""
+
+
+# lexer = Lexer(r"a\d{1,3}(?:foo|bar)?")
+lexer = Lexer(r"(ab*c|d)")
+tokens = lexer.tokenize()
+parse = Parser(tokens)
+print(parse.parse())
