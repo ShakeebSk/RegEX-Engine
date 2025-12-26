@@ -79,6 +79,8 @@ class ConcatNode(ASTNode):
 
     def __repr__(self):
         return f"Concat({self.children})"
+        # return f"Concat({', '.join(repr(child) for child in self.children)})"
+        # return f"Concat({len(self.children)} Items)"
 
 
 @dataclass
@@ -95,7 +97,7 @@ class GroupNode(ASTNode):
     group_number: int
 
     def __repr__(self):
-        return f"Group#{self.group_number}({self.child})"
+        return f"Group# {self.group_number} ({self.child})"
 
 
 @dataclass
