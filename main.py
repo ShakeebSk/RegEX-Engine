@@ -1,6 +1,7 @@
 r"""
 Regex Engine:
 What is regEx :RegEx stands for Regular Expression
+The RegEx is a sequence of characters that forms a search pattern. It is mainly used for string pattern matching. and behind the scenes there is something known as RegEx Engine which is responsible for the actual pattern matching process. and these pattern matching process is done through a combination of algorithms and data structures. so let's dive deep into the RegEx Engine and understand how it works under the hood.
 
 This is the Code for Building the RegEx engine from the Scratch
 This one can handle the core features like character classes [a-zA-Z0-9],
@@ -18,7 +19,7 @@ Regex Uses Tree and Backtracking
 r""" 
 How Does a Regex Engine Works:
 The User Provides a pattern string and also provide something known as a text.But
-Eg. LEt's say we have a hypthetical function called  match .The User will provide two things over here:- The very first string is going to be pattern string  and then a text. the goal of this function is to written either a true of false value:
+Eg. LEt's say we have a hypothetical function called  match .The User will provide two things over here:- The very first string is going to be pattern string  and then a text. the goal of this function is to written either a true of false value:
 
 If the pattern string matches this text or not. so let's say the user specifies this particular String.This is a pattern  string and this pattern string goes through a  lexer/tokenizer is that characters are converted into tokens.
 
@@ -140,4 +141,108 @@ so for more easier understanding let's take an example of maths:
 so now to solve this we use the precedence and associativity rules:
 Precedence: It tells us which operator should be evaluated first. in the above case * has higher precedence than + so we will evaluate 4*3 first and then add 5 to it.
 Associativity: It tells us the order in which operators of the same precedence should be evaluated.
+
+so the answer for the above case -> ab*c/d is : (ab*c)/d i.e is the 1st one because the * has higher precedence than / so we will evaluate ab*c first and then divide it by d and also the regex engine just doesn't goes up there and put the brackets manually there it just sees the alternation operator i.e / and then just seperate out these (ab*c)/(d).
+
+So how we are going to visualize this? 
+Let's again take this example 5+4*3 
+The AST for this will be:it will be divided in nodes and there are 5 nodes that are: 5, +, 4, *, 3  -> Below is the representation of the AST:
+    +
+   / \
+  5   *
+     / \
+    4   3
+
+The similar way we can create the AST for the regex pattern string ab*c/d -> Below is the representation of the AST:
+        AlTERNATION '|'
+          |       |
+        Concat    d
+        /  |  \
+       a   b   c
+           |
+           *         
+
+but did i do this: so just follow the rules ->
+Grammar (in order of precedence, lowest to highest):
+1. Alternation ::= concat ('|' concat)*
+2. Concat ::= quantified*
+3. Quantified ::= atom quantifiers?
+4. Atom ::= CHAR | DOT | PREDEFIEND | GROUP | NON_CAPTURING_GROUP | LOOKAHEAD | LOOKBEHIND | LOOKAHEAD_NEGATIVE | LOOKBEHIND_NEGATIVE | BACKREFERENCE | CHAR_CLASS | NEGATED_CHAR_CLASS | '(' Alternation ')'
+5. Quantifiers ::= '*' | '+' | '?' | '{' NUMBER (',' NUMBER?)?
+
+Now let's see how the above grammar works so let's go to the first rule: that the alternation also known as or (has the lowest precedence) ::= concat ('|' concat)* it means that let's take this x|x => here first we have to resolve x it self than only we can go to or '|'  and then only we can go to the next x so this is how the first rule works and we have asterisk sign * at the end which means that this can repeat multiple times so we can have x|x|x|x|x and so on. or we can have only one x or no x at all and also there is no complusion that we need to have alternation operator in the pattern string. let's move ahead to the second rule: Concat ::= quantified*  it means that we have to resolve the quantified part first and then only we can go to the concatenation part and here also we have asterisk sign * at the end which means that this can repeat multiple times so we can have x y z a b c and so on or we can have only one x or no x at all. let's move ahead to the third rule: Quantified ::= atom quantifiers?  it means that we have to resolve the atom part first and then only we can go to the quantifiers part and here we have a question mark ? at the end which means that this part is optional so we can have atom with quantifiers or without quantifiers. let's move ahead to the fourth rule: Atom ::= CHAR | DOT | PREDEFIEND | GROUP | NON_CAPTURING_GROUP | LOOKAHEAD | LOOKBEHIND | LOOKAHEAD_NEGATIVE | LOOKBEHIND_NEGATIVE | BACKREFERENCE | CHAR_CLASS | NEGATED_CHAR_CLASS | '(' Alternation ')'  it means that atom can be any of these things like character, dot, predefined, group, non capturing group, lookahead, lookbehind, lookahead negative, lookbehind negative, backreference, char class, negated char class or alternation within paranthesis. let's move ahead to the fifth rule: Quantifiers ::= '*' | '+' | '?' | '{' NUMBER (',' NUMBER?)?  it means that quantifiers can be any of these things like *, +, ?, {n}, {n,}, {n,m} where n and m are numbers. 
+
+let's take this example of pattern string : ab*c|d => the Parser is going to first look at the first char and as in our case it is a character a and then it's going to look at the next character which is b and both of them will be concatenated together and then it's going to look at the next character which is * and as per our grammar rules * has higher precedence than | so it's going to create a node for * with b as its left child and then it's going to look at the next character which is c and it's going to concatenate it with the result of b* and then it's going to look at the next character which is | and as per our grammar rules | has the lowest precedence so it's going to create a node for | with ab* c as its left child and then it's going to look at the next character which is d and it's going to create a node for d as its right child.
+
+
+
+Now let's take an even interesting example of pattern string : a\d{1}(?:foo|bar)  How will it be parsed? Let's break it down step by step:
+In this case we don't have an alternaton operator | that's dividing the pattern string except for the 'foo|bar' part and this is not creating a divide between the entire pattern string so first we go ahead and parse 'a' which is a character and then we go ahead  but then we go ahead and parse '\d{1}' here '\d' is a predefined token which means digit and then we have '{1}' here there is an '{' which is a quantifier and has the highest precedence, so we create a node for '{1}' with '\d' as its left child and then we go ahead and parse '(?:foo|bar)+' here '(?:foo|bar)' is a non capturing group and then we have '+' which is a quantifier so we create a node for '+' with '(?:foo|bar)' as its left child and then we go ahead and parse 'd?' here 'd' is a character and then we have '?' which is a quantifier so we create a node for '?' with 'd' as its left child. finally we concatenate all of these together to form the final AST.
+Below is the representation of the AST for the pattern string a\d{1}(?:foo|bar) 
+
+Representation AST Tree of a\d{1}(?:foo|bar):
+         
+                CONCATENATION
+                /  |        \                
+              /    |         \
+           'a'   Quantified   NON_CAPTURING
+                   |              |
+                  \d         ALTERNATION
+                   |            /        \
+                  {1}       'foo'      'bar'
+                            /              \
+                        CONCAT             CONCAT
+                        f   o   o         b   a   r
+
+
+
+
+
+
+What is AST: AST stands for Abstract Syntax Tree. It is a tree representation of the abstract syntactic structure of the source code written in a programming language.Each node of the tree denotes a construct occuring in the source code.
+
+
+Parser Implementation: So as we have seen in the above examples that how does an parser implements the grammer rules and creates the AST tree structure. now let's see how we can implement it in code is first we will create a function called parse_alternation() this function will be responsible for parsing the alternation operator | and then we will create a function called parse_concatenation() this function will be responsible for parsing the concatenation operator and then we will create a function called parse_quantified() this function will be responsible for parsing the quantifiers and then we will create a function called parse_atom() this function will be responsible for parsing the atoms and then we wil create the parse_quantifier() function which will be responsible for parsing the quantifiers finally we will create a function called parse() which will be responsible for calling the all the functions in the correct order to create the AST tree structure.
+
+Order of the Functions:
+1. parse_alternation()    ----> This is the first function to be called as it has the lowest precedence and then it calls the next function parse_concatenation()
+2. parse_concatenation()  ----> This is the second function to be called as it has the second lowest precedence and then it calls the next function parse_quantified()
+3. parse_quantified()     ----> This is the third function to be called as it has the middle precedence and then it calls the next function parse_atom()
+4. parse_atom()           ----> This is the fourth fuction to be called as it has the second highest precedence and then it calls the next function parse_quantifier()
+5. parse_quantifier()     ----> This is the fifth function to be called as it has the highest precedence and then it calls the next function parse()
+6. parse()
+
+
+Note: The parser implementation is done using recursive descent parsing technique. Each function is responsible for parsing a specific part of the grammar and calls the next function in the correct order to create the AST tree structure. and we cannot call the the parse_quantifier funtion just because it has the higgest precedence as it id some thing of like an STACK[LIFO] where the lowest precedence function is called first and then it calls the next function in the correct order to create the AST tree structure.
+This above parsing technique is known as Recursive Descent Parsing.: 
+Generally in a recursive descent parser, each non-terminal in the grammar is implemented as a separate function in the parser. The function for each non-terminal is responsible for recognizing the corresponding part of the input and constructing the appropriate parse tree node. The functions call each other recursively to handle nested structure in the form of the grammar.
+
+This is also known as Top-Down Parsing or predictive parsing. and these type of prasing technique works really well for LLK Grammars LL(k).what this means is that these LLK is just a shorthand for Left-to-right scanning of the input, Leftmost derivation of the parse tree and k tokens of lookahead to make parsing decisions. so for example if we have something of like these: LL(1) it means that we are scanning the input from left to right and we are constructing the leftmost derivation of the parse tree and we are using 1 token of lookahead to make parsing decisions.
+for example let's take this as a pattern string : ab*c|d
+
+In this we read left to right so the first token is 'a' which is a character and then we go ahead and read the next token which is 'b' which is also a character and then we go ahead and read the next token which is '*' which is a quantifier and then we go ahead and read the next token which is 'c' which is also a character and then we go ahead and read the next token which is '|' which is an alternation operator and then we go ahead and read the next token which is 'd' which is also a character. so in this way we are scanning the input from left to right and we are constructing the leftmost derivation of the parse tree and we are using 1 token of lookahead to make parsing decisions. so at each step we are looking at the current token and the next token which is basically 'K' token to lookahead to make parsing decisions.This is just fun fact it doesn't affect the implementation of the parser.
+
+The abstract syntax code is in ast_node.py file.
+The Workflow of the Abstract Syntax tree is with the name WorkFlow of AST.svg file.
+The Parser code is in the parser.py file.
+The Workflow of the Parser is with the name WorkFlow of Parser.svg file.
+
+"""
+
+r""" 
+Matcher Module:The Matcher module is responsible for taking the Abstract Syntax Tree (AST) generated by the parser and using it to match input strings against the defined regular expressions. It traverses the AST nodes and applies the corresponding matching logic for each node type.
+
+How does the Matcher works: The Matcher module works by recursively traversing the AST nodes and applying the matching logic for each node type. It starts from the root node of the AST and processes each node based on its type, such as character nodes,quantifier nodes, alternation nodes, and so on. The matcher keeps track of the current position in the input string and attempts to match the pattern defined by the AST against the input string.
+
+The Matcher module also handles backtracking, which is a crucial aspect of regex matching. When a match attempt fails at a certain point in the input string, the matcher can backtrack to previous positions and try alternative paths in the AST to find a successful match.
+
+
+The Matcher code is in the matcher.py file.
+
+The Workflow of the Matcher is with the name WorkFlow of Matcher.svg file.
+
+
+ 
+
+
 """
