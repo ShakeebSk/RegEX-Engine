@@ -241,8 +241,38 @@ The Matcher code is in the matcher.py file.
 
 The Workflow of the Matcher is with the name WorkFlow of Matcher.svg file.
 
+Note: The Diagram is a bit complex so please take your time to understand it properly. But still if you have any doubts please feel free to ask me. & i will try to explain it in a theory just below it.
+
+What does a matcher get? for example in a parser module we get a list of token objects from the lexer and then we create a relationship between them in the form of an AST tree structure and then we pass that AST tree to the matcher module so that it can match the input string against the defined regular expression.
+
+In the lexer we gave this particular pattern string ab*|c and this pattern needs to be matched to a text so  we match it to a text string like (abbc,d,abcd)   and this text will be provided by the user. andf this is the particular phase that's where the text comes into picture. we don't need to convert that into a lexer or pass through it to a lexer or we even don't need to do any of the tokenization all of that dosen't need to be done here because we already have a tree structure in the form of AST which was created from the pattern string so now we just need to match that tree structure against this text string by looping/traversing it.
+
+
+                      alternation
+                      /          \
+                  Concatenation  'd'
+                /       |      \    
+              literal  '*'     'c'
+              node(a)   |
+                      Char
+                      Node(b)
+                      
+Let's take the above example of AST tree structure for the pattern string ab*c|d and let's say the text string provided by the user is abbc so now the matcher will start from the root node which is alternation node and then it will go to the left child which is concatenation node and then it will go to the left child which is literal node 'a' and then it will check if the current character in the text string is 'a' or not if it is then it will move to the next character in the text string and then it will go to the right child which is quantifier node '*' and then it will go to the left child which is char node 'b' and then it will check if the current character in the text string is 'b' or not if it is then it will move to the next character in the text string and then it will check if there are more 'b's in the text string because of the '*' quantifier if there are more 'b's then it will keep moving to the next character in the text string until there are no more 'b's and then it will go to the right child which is literal node 'c' and then it will check if the current character in the text string is 'c' or not if it is then it will move to the next character in the text string and then it will reach the end of the text string and since all characters have been matched successfully it will return a match object indicating a successful match.
+
+and now let's say if the text string provided by the user is d so now the matcher will start from the root node which is alternation node and then it will go to the left child which is concatenation node and then it will go to the left child which is literal node 'a' and then it will check if the current character in the text string is 'a' or not if it is not then it will backtrack to the root node and then it will go to the right child which is literal node 'd' and then it will check if the current character in the text string is 'd' or not if it is then it will move to the next character in the text string and then it will reach the end of the text string and since all characters have been matched successfully it will return a match object indicating a successful match.
+
+Now let's match it with another string abcd so now the matcher will start from the root node which is alternation node and then it will go to the left child which is concatenation node and then it will go to the left child which is literal node 'a' and then it will check if the current character in the text string is 'a' or not if it is then it will move to the next character in the text string and then it will go to the right child which is quantifier node '*' and then it will go to the left child which is char node 'b' and then it will check if the current character in the text string is 'b' or not if it is then it will move to the next character in the text string and then it will check if there are more 'b's in the text string because of the '*' quantifier if there are no more 'b's then it will go to the right child which is literal node 'c' and then it will check if the current character in the text string is 'c' or not if it is then it will move to the next character in the text string and then it will reach the end of the text string but there is still one more character 'd' left in the text string here is where things gets intersting since the d is also in the concatenation node of the tree has only 3 child so well what will it do? will it go to the next child? so well, whenevr it goes to this next child of the alternation node that is 'd' the entire things reset so what ever progress we made like we started from a in abcd we goes to b and then c so this progress of abc is not continued when we move to the new child so again we start from the beginning of the text that is a but our current-tree-node/current-token is matching it with the 'd' and deginetly it won't match and that's why it will be an error.  so since all characters have not been matched successfully it will return null/False indicating no match found.This is how the Matcher of the Regex Engine works.
+
+This intuition is a very simple and does not completely explain the entire diagram but when we will go through groupings and lookahead/lookbehind it will be more complicated but still the basic idea will remain the same that we will traverse the AST tree and match it with the text string provided by the user. 
+
+Note : The result of the matcher is either going to be True or False Value.
+
+
+
+
+
+r"""      
 
  
 
 
-"""
